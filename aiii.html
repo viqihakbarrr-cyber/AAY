@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI Assistant</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- RESET & DASAR --- */
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #131314;
+            color: #E3E3E3;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* --- LAYOUT UTAMA --- */
+        .chat-container {
+            flex: 1;
+            width: 100%;
+            max-width: 850px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        /* --- HEADER --- */
+        .top-bar {
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(19, 19, 20, 0.8);
+            backdrop-filter: blur(10px);
+            z-index: 10;
+        }
+        
+        .brand {
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: #A8C7FA;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .status-badge {
+            font-size: 0.75rem;
+            color: #C4C7C5;
+            background: #1E1F20;
+            padding: 4px 10px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid #444746;
+        }
+        
+        .dot { width: 6px; height: 6px; background: #34A853; border-radius: 50%; box-shadow: 0 0 8px #34A853; }
+
+        /* --- AREA CHAT --- */
+        #chat-box {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            padding-bottom: 120px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            scroll-behavior: smooth;
+        }
+
+        .message-row { display: flex; width: 100%; }
+        .message-row.user { justify-content: flex-end; }
+        .message-row.ai { justify-content: flex-start; }
+
+        .bubble {
+            max-width: 85%;
+            padding: 12px 18px;
+            border-radius: 18px;
+            font-size: 1rem;
+            line-height: 1.6;
+            position: relative;
+            word-wrap: break-word;
+        }
+
+        .user .bubble {
+            background-color: #282A2C;
+            color: #fff;
+            border-bottom-right-radius: 4px;
+        }
+
+        .ai .bubble {
+            background-color: transparent;
+            color: #E3E3E3;
+            padding-left: 0;
+            max-width: 95%;
+        }
+        
+        .ai-avatar {
+            width: 28px;
+            height: 28px;
+            margin-right: 12px;
+            margin-top: 2px;
+            background: linear-gradient(135deg, #4285F4, #9B72CB);
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        /* --- ANIMASI FADE IN PER KATA (UPDATED) --- */
+        /* Span ini akan dibungkus per kata lewat JS */
+        .word-animate {
+            animation: popIn 0.25s cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
+            opacity: 0;
+            display: inline-block; /* Penting agar transform jalan */
+            transform-origin: left bottom;
+            white-space: pre-wrap; /* Jaga spasi tetap ada */
+        }
+
+        @keyframes popIn {
+            0% { opacity: 0; transform: translateY(8px) scale(0.95); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        /* --- INPUT AREA --- */
+        .input-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: 20px;
+            background: linear-gradient(to top, #131314 85%, transparent);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* STATUS THINKING BARU (100 -> 60 -> 100) */
+        .status-text {
+            font-size: 0.8rem;
+            color: #A8C7FA;
+            margin-bottom: 12px;
+            height: 15px;
+            opacity: 0;
+            font-weight: 500;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-family: 'JetBrains Mono', monospace;
+            transition: opacity 0.2s ease;
+        }
+
+        .status-text.active {
+            opacity: 1;
+            animation: breathe 1.5s infinite ease-in-out;
+        }
+
+        @keyframes breathe {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; } /* Sesuai request: turun ke 60% */
+            100% { opacity: 1; }
+        }
+
+        .input-box {
+            width: 100%;
+            max-width: 800px;
+            background-color: #1E1F20;
+            border: 1px solid #444746;
+            border-radius: 30px;
+            padding: 8px 12px 8px 24px;
+            display: flex;
+            align-items: center;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .input-box:focus-within { 
+            border-color: #A8C7FA; 
+            background-color: #28292A;
+            box-shadow: 0 4px 20px rgba(168, 199, 250, 0.15);
+        }
+
+        input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 1rem;
+            font-family: 'Inter', sans-serif;
+            padding: 12px 0;
+            outline: none;
+        }
+
+        button {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            border: none;
+            background: #E3E3E3;
+            color: #131314;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.2s;
+            margin-left: 10px;
+        }
+
+        button:hover { background: #FFFFFF; transform: scale(1.05); }
+        button:active { transform: scale(0.95); }
+        button:disabled { background: #444746; color: #888; cursor: default; transform: none; }
+        button svg { width: 22px; height: 22px; fill: currentColor; }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 10px; }
+
+        @media (max-width: 600px) {
+            .chat-container { max-width: 100%; }
+            .bubble { max-width: 90%; font-size: 0.95rem; }
+            .input-container { padding: 15px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="chat-container">
+        <div class="top-bar">
+            <div class="brand">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                My AI
+            </div>
+            <div class="status-badge"><div class="dot"></div> Online</div>
+        </div>
+
+        <div id="chat-box">
+            <div class="message-row ai">
+                <div class="ai-avatar"></div>
+                <div class="bubble">Halo juga, ada apa nih?</div>
+            </div>
+        </div>
+
+        <div class="input-container">
+            <div id="status-indicator" class="status-text">Thinking</div>
+            
+            <div class="input-box">
+                <input type="text" id="user-input" placeholder="Ketik sesuatu..." onkeypress="handleEnter(event)" autocomplete="off">
+                <button onclick="sendMessage()" id="send-btn">
+                    <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ================= KONFIGURASI =================
+        const BASE_URL = "https://paleoentomologic-kemberly-juristically.ngrok-free.dev"; 
+        
+        // SYSTEM PROMPT DIPERBARUI: GAUL, SINGKAT, FLEKSIBEL INDO/INGGRIS
+        const SYSTEM_PROMPT = `
+        Roleplay: Kamu adalah AI assistant yang asik, santai, dan "gaul". 
+        Bahasa: Sangat fasih Bahasa Indonesia (slang/sehari-hari) dan Inggris. Fleksibel menyesuaikan lawan bicara.
+        
+        RULES UTAMA:
+        1. JAWAB SINGKAT & ON POINT. Jangan bertele-tele. Jangan memberikan penjelasan panjang kecuali diminta.
+        2. GUNAKAN STYLE SANTAI. Pakai kata sapaan seperti "bro", "gan", "kak", atau langsung ke inti.
+        3. HINDARI pembukaan kaku seperti "Tentu saya bisa membantu". Langsung jawab saja.
+        
+        CONTOH INTERAKSI (Wajib Tiru Style Ini):
+        User: "Halo"
+        AI: "Halo juga, ada apa nih?"
+        
+        User: "Apa kabar lu?"
+        AI: "Gaul banget. Aman bro, lu gimana?"
+        
+        User: "Siapa presiden Indonesia?"
+        AI: "Pak Prabowo Subianto."
+        
+        User: "Buatkan puisi tentang kopi"
+        AI: "Oke, ini puisinya:
+        Hitam pekat dalam gelas,
+        Menemani pagi yang tak lagi cemas..."
+        
+        User: "Terjemahkan 'I love you' ke jepang"
+        AI: "Aishiteru (愛してる)."
+        `;
+        // ===============================================
+
+        const API_URL = `${BASE_URL}/completion`;
+
+                async function sendMessage() {
+            const inputField = document.getElementById('user-input');
+            const chatBox = document.getElementById('chat-box');
+            const sendBtn = document.getElementById('send-btn');
+            const statusIndicator = document.getElementById('status-indicator');
+            const userText = inputField.value.trim();
+
+            if (!userText) return;
+
+            // 1. Tampilkan Pesan User
+            addMessage('user', userText);
+            inputField.value = "";
+            
+            // 2. Aktifkan Status "Thinking"
+            sendBtn.disabled = true;
+            statusIndicator.classList.add('active'); 
+
+            // 3. Siapkan Bubble AI
+            const aiBubble = addMessage('ai', ''); 
+            
+            // --- PERBAIKAN FORMAT PROMPT (CHATML FORMAT) ---
+            // Ini format yang lebih dimengerti oleh Llama 3, Qwen, Mistral, dll
+            const finalPrompt = 
+`<|im_start|>system
+${SYSTEM_PROMPT}
+<|im_end|>
+<|im_start|>user
+${userText}
+<|im_end|>
+<|im_start|>assistant
+`;
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        prompt: finalPrompt,
+                        n_predict: 256, 
+                        temperature: 0.7,
+                        stream: true,
+                        // --- PERBAIKAN STOP TOKEN ---
+                        // Memaksa AI berhenti dan tidak membocorkan prompt
+                        stop: ["<|im_end|>", "<|endoftext|>", "User:", "Instruksi Super Ketat:"] 
+                    })
+                });
+
+                if (!response.ok) throw new Error("Connection Failed");
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder("utf-8");
+                let isFirstChunk = true;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split('\n');
+                    
+                    for (const line of lines) {
+                        if (line.startsWith("data: ")) {
+                            try {
+                                const jsonStr = line.substring(6);
+                                if (jsonStr.trim() === "[DONE]") break;
+                                
+                                const json = JSON.parse(jsonStr);
+                                
+                                if (isFirstChunk && json.content) {
+                                    statusIndicator.classList.remove('active');
+                                    isFirstChunk = false;
+                                }
+
+                                if (json.content) {
+                                    // Mencegah AI menulis ulang tag system jika bocor
+                                    let cleanContent = json.content.replace("<|im_end|>", "");
+                                    
+                                    const words = cleanContent.split(/(\s+)/);
+                                    words.forEach(word => {
+                                        if (word.length > 0) {
+                                            const span = document.createElement('span');
+                                            span.className = 'word-animate';
+                                            span.textContent = word; 
+                                            aiBubble.appendChild(span);
+                                        }
+                                    });
+                                    scrollToBottom();
+                                }
+                            } catch (e) { }
+                        }
+                    }
+                }
+
+            } catch (error) {
+                statusIndicator.classList.remove('active');
+                aiBubble.innerText = "⚠️ Error: Cek koneksi Termux.";
+                aiBubble.style.color = "#ff6b6b";
+            }
+
+            statusIndicator.classList.remove('active');
+            sendBtn.disabled = false;
+        }
+
+
+          
+
+        function addMessage(sender, text) {
+            const chatBox = document.getElementById('chat-box');
+            const row = document.createElement('div');
+            row.className = `message-row ${sender}`;
+            
+            let html = '';
+            if (sender === 'ai') {
+                // Untuk AI, text awal kosong karena akan di-stream
+                html = `<div class="ai-avatar"></div><div class="bubble">${text}</div>`;
+            } else {
+                html = `<div class="bubble">${text}</div>`;
+            }
+            
+            row.innerHTML = html;
+            chatBox.appendChild(row);
+            scrollToBottom();
+            
+            return row.querySelector('.bubble');
+        }
+
+        function scrollToBottom() {
+            const chatBox = document.getElementById('chat-box');
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function handleEnter(e) {
+            if (e.key === 'Enter') sendMessage();
+        }
+    </script>
+</body>
+</html>
